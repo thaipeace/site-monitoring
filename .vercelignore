@@ -1,0 +1,9 @@
+# Never upload local secrets or local data with `vercel deploy`
+.env
+.env.*
+!.env.example
+.neon
+.pg-data
+.next
+node_modules
+tsconfig.tsbuildinfo

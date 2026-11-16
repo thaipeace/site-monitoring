@@ -18,11 +18,11 @@ export async function GET(request: Request) {
 
   const cutoff = sql`now() - make_interval(days => p.retention_days)`;
   const deleted = {
-    events: (await db.execute(sql`delete from events e using projects p where e.project_id = p.id and e.received_at < ${cutoff}`)).count,
-    receipts: (await db.execute(sql`delete from event_receipts r using projects p where r.project_id = p.id and r.received_at < ${cutoff}`)).count,
-    hourly: (await db.execute(sql`delete from issue_hourly h using projects p where h.project_id = p.id and h.hour < ${cutoff}`)).count,
-    issues: (await db.execute(sql`delete from issues i using projects p where i.project_id = p.id and i.last_seen < ${cutoff}`)).count,
-    sessions: (await db.execute(sql`delete from sessions where expires_at < now()`)).count,
+    events: (await db.execute(sql`delete from events e using projects p where e.project_id = p.id and e.received_at < ${cutoff}`)).rowCount,
+    receipts: (await db.execute(sql`delete from event_receipts r using projects p where r.project_id = p.id and r.received_at < ${cutoff}`)).rowCount,
+    hourly: (await db.execute(sql`delete from issue_hourly h using projects p where h.project_id = p.id and h.hour < ${cutoff}`)).rowCount,
+    issues: (await db.execute(sql`delete from issues i using projects p where i.project_id = p.id and i.last_seen < ${cutoff}`)).rowCount,
+    sessions: (await db.execute(sql`delete from sessions where expires_at < now()`)).rowCount,
   };
   return Response.json({ ok: true, deleted });
 }

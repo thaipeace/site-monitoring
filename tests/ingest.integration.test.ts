@@ -149,6 +149,6 @@ describe("ingest", () => {
         where id = ${r.issue_id} and (last_alerted_at is null or last_alerted_at < now() - interval '60 minutes')
         returning id`);
     const claims = await Promise.all(Array.from({ length: 6 }, claim));
-    assert.equal(claims.filter((c) => c.length > 0).length, 1);
+    assert.equal(claims.filter((c) => c.rows.length > 0).length, 1);
   });
 });
