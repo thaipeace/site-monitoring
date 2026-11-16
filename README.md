@@ -43,7 +43,8 @@ npm run test:integration      # needs DATABASE_URL: idempotency, grouping, envir
 - Driver: `node-postgres` + `attachDatabasePool` (recommended for Vercel Fluid compute). The app uses the pooled `DATABASE_URL`; migrations use `DATABASE_URL_UNPOOLED`.
 
 Pull DB env vars locally: `neon env pull` (or `neon deploy`). Migrate: `npm run db:migrate`.
-Redeploy: `vercel deploy --prod` (`.vercelignore` keeps `.env*` from being uploaded).
+**Auto-deploy:** the GitHub repo is connected to Vercel — every push to `main` deploys to production; other branches get preview deployments.
+Manual redeploy: `vercel deploy --prod` (`.vercelignore` keeps `.env*` from being uploaded).
 `vercel.json` pins functions to `sin1` and runs a daily cron at `/api/cron/cleanup` (deletes data past `retentionDays`).
 
 ## Sending from a Cloudflare Worker
