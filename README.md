@@ -36,12 +36,15 @@ npm run test:integration      # needs DATABASE_URL: idempotency, grouping, envir
                               # regression, resolve-in-next-release, concurrency, atomic alert claim
 ```
 
-## Deploying to Vercel
+## Deployment (live)
 
-1. Create a Neon Postgres database in **Singapore** (`aws-ap-southeast-1`) and use the pooled connection string as `DATABASE_URL`.
-2. Set the env vars from `.env.example` on Vercel (`APP_URL` = the `*.vercel.app` domain; separate `RESEND_API_KEY`).
-3. `vercel.json` pins functions to `sin1` and runs a daily cron at `/api/cron/cleanup` (deletes data past `retentionDays`).
-4. Run the migrations against production: `DATABASE_URL=... npm run db:migrate`.
+- **Production:** https://site-monitoring-nu.vercel.app — Vercel team `thai-nguyen4`, project `site-monitoring`, functions in `sin1`.
+- **Database:** Neon project `lingering-mouse-30987695` (Singapore), branch `production`. `neon.ts` and the git-ignored `.neon` come from `neon init`.
+- Driver: `node-postgres` + `attachDatabasePool` (recommended for Vercel Fluid compute). The app uses the pooled `DATABASE_URL`; migrations use `DATABASE_URL_UNPOOLED`.
+
+Pull DB env vars locally: `neon env pull` (or `neon deploy`). Migrate: `npm run db:migrate`.
+Redeploy: `vercel deploy --prod` (`.vercelignore` keeps `.env*` from being uploaded).
+`vercel.json` pins functions to `sin1` and runs a daily cron at `/api/cron/cleanup` (deletes data past `retentionDays`).
 
 ## Sending from a Cloudflare Worker
 
