@@ -55,6 +55,7 @@ async function MainNav() {
       </NavLink>
       <NavLink href="/settings/tokens">API tokens (AI agent)</NavLink>
       <NavLink href="/docs">Tích hợp</NavLink>
+      {user.role === "admin" && <NavLink href="/admin/users">Người dùng</NavLink>}
     </>
   );
 }
@@ -78,10 +79,10 @@ async function UserBox() {
   const user = await requireUser();
   return (
     <div className="flex items-center justify-between gap-2 border-t border-white/10 px-4 py-3 text-sm">
-      <div className="min-w-0">
+      <Link href="/account" className="min-w-0 rounded hover:bg-white/5" title="Tài khoản">
         <div className="truncate font-medium">{user.name}</div>
         <div className="truncate text-xs text-violet-200/70">{user.email}</div>
-      </div>
+      </Link>
       <form action={logout}>
         <button className="rounded px-2 py-1 text-xs text-violet-200 hover:bg-white/10" type="submit">
           Thoát

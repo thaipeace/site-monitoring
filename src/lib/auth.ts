@@ -1,25 +1,18 @@
 import "server-only";
-import bcrypt from "bcryptjs";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { db } from "./db";
-import { sessions, users } from "./db/schema";
+import { sessions, users, type UserRole } from "./db/schema";
 import { randomToken, sha256 } from "./crypto";
 
 export const SESSION_COOKIE = "sm_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-export type SessionUser = { id: string; email: string; name: string };
+export type SessionUser = { id: string; email: string; name: string; role: UserRole };
 
-export async function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
-}
-
-export async function verifyPassword(password: string, hash: string) {
-  return bcrypt.compare(password, hash);
-}
+export { hashPassword, verifyPassword } from "./password";
 
 export async function createSession(userId: string) {
   const token = randomToken();
@@ -41,15 +34,22 @@ export async function destroySession() {
   jar.delete(SESSION_COOKIE);
 }
 
+/** sha256 id of the current session (empty string when signed out). */
+export async function currentSessionId() {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? sha256(token) : "";
+}
+
 /** Returns the signed-in user or null. Reads the request cookie. */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const [row] = await db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, sql`now()`)))
+    // Locked accounts lose access immediately, even with a live cookie.
+    .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, sql`now()`), eq(users.active, true)))
     .limit(1);
   return row ?? null;
 }
@@ -60,5 +60,12 @@ export async function requireUser(): Promise<SessionUser> {
   await connection();
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  return user;
+}
+
+/** Workspace admin only (user & invite management). Others go back to the overview. */
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "admin") redirect("/");
   return user;
 }

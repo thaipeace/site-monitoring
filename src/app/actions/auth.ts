@@ -1,11 +1,13 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
+import { createSession, currentSessionId, destroySession, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { sessions, users } from "@/lib/db/schema";
+import { AccessError } from "@/lib/services/access";
+import { acceptInvite } from "@/lib/services/users";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -32,6 +34,7 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
   // Same message for unknown user / wrong password; always run bcrypt to keep timing similar.
   const ok = await verifyPassword(password, user?.passwordHash ?? "$2b$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvali");
   if (!user || !ok) return { error: "Email hoặc mật khẩu không đúng" };
+  if (!user.active) return { error: "Tài khoản đã bị khoá. Liên hệ quản trị viên." };
 
   const domain = allowedDomain();
   if (domain && !email.endsWith(`@${domain}`)) return { error: `Chỉ tài khoản @${domain} được đăng nhập` };
@@ -58,20 +61,69 @@ export async function register(_: FormState, form: FormData): Promise<FormState>
   const domain = allowedDomain();
   if (domain && !email.endsWith(`@${domain}`)) return { error: `Chỉ email @${domain} được đăng ký` };
 
-  if (process.env.ALLOW_REGISTRATION === "false") {
-    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(users);
-    if (n > 0) return { error: "Đăng ký đang tắt. Liên hệ quản trị viên." };
+  // Like Task Board: no public sign-up. Only the very first account (the first admin)
+  // registers here; everyone else joins through an invite link.
+  const created = await db.transaction(async (tx) => {
+    await tx.execute(sql`lock table ${users} in share row exclusive mode`);
+    const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(users);
+    if (n > 0) return null;
+    const [row] = await tx
+      .insert(users)
+      .values({ name, email, passwordHash: await hashPassword(password), role: "admin" })
+      .returning({ id: users.id });
+    return row;
+  });
+  if (!created) return { error: "Chỉ đăng nhập bằng link mời. Liên hệ quản trị viên để được mời." };
+
+  await createSession(created.id);
+  redirect("/admin/users");
+}
+
+export async function acceptInviteAction(token: string, _: FormState, form: FormData): Promise<FormState> {
+  const parsed = z
+    .object({
+      name: z.string().trim().min(1, "Nhập tên").max(80),
+      password: z.string().min(10, "Mật khẩu tối thiểu 10 ký tự").max(200),
+    })
+    .safeParse({ name: form.get("name"), password: form.get("password") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  let userId: string;
+  try {
+    userId = await acceptInvite(token, parsed.data.name, parsed.data.password);
+  } catch (err) {
+    if (err instanceof AccessError) return { error: err.message };
+    throw err;
   }
-
-  const inserted = await db
-    .insert(users)
-    .values({ name, email, passwordHash: await hashPassword(password) })
-    .onConflictDoNothing()
-    .returning({ id: users.id });
-  if (!inserted.length) return { error: "Email đã được đăng ký" };
-
-  await createSession(inserted[0].id);
+  await createSession(userId);
   redirect("/");
+}
+
+const accountSchema = z.object({
+  name: z.string().trim().min(1, "Nhập tên").max(80),
+  currentPassword: z.string(),
+  newPassword: z.union([z.literal(""), z.string().min(10, "Mật khẩu mới tối thiểu 10 ký tự").max(200)]),
+});
+
+/** /account: change your own name and (optionally) password. */
+export async function updateAccountAction(_: FormState, form: FormData): Promise<FormState> {
+  const me = await requireUser();
+  const parsed = accountSchema.safeParse({
+    name: form.get("name"),
+    currentPassword: form.get("currentPassword") ?? "",
+    newPassword: form.get("newPassword") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { name, currentPassword, newPassword } = parsed.data;
+  if (!newPassword) {
+    await db.update(users).set({ name }).where(eq(users.id, me.id));
+    return { ok: "Đã lưu" };
+  }
+  const [row] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, me.id)).limit(1);
+  if (!row || !(await verifyPassword(currentPassword, row.passwordHash))) return { error: "Mật khẩu hiện tại không đúng" };
+  await db.update(users).set({ name, passwordHash: await hashPassword(newPassword) }).where(eq(users.id, me.id));
+  // Sign out other devices; keep this one.
+  await db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, await currentSessionId())));
+  return { ok: "Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất." };
 }
 
 export async function logout() {

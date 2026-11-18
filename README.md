@@ -9,6 +9,7 @@ the monitor lives outside Cloudflare (Vercel `sin1` + Neon Singapore) so it does
 - **Statuses**: unresolved / resolved / *resolved in next release* / ignored; automatically reopened when the error comes back (regression).
 - **Threshold email alerts** (new error, regression, spike/hour) with an **atomic claim** so no alert is sent twice; optional Slack-compatible webhook.
 - **UI** (Vietnamese): overview, error-group list filtered by environment / release / time window, details (chart, stack, history, comments, "copy to create task"), event stream, releases, notifications, project settings, members.
+- **Users** (like Task Board): no public sign-up – `/register` only creates the first admin of an empty workspace; everyone else joins via single-use invite links (7 days). Workspace roles admin / member; admins manage users at `/admin/users` (invite, change role, lock / unlock, password-reset link 24h). Locking signs the user out and disables their API tokens; the last active admin can't be demoted or locked. `/account` changes your own name / password.
 - **AI agents**: API tokens (`smt_…`, scopes `read`/`write`/`admin`, can be restricted to one project) for the **REST API** `/api/v1/*` and the **MCP server** `/api/mcp`.
 - Sign-in with email + password, **restricted to `@siroby.com`** (`ALLOWED_EMAIL_DOMAIN`).
 
@@ -19,7 +20,7 @@ npm install
 cp .env.example .env          # set KEY_ENCRYPTION_SECRET, CRON_SECRET
 npm run db:dev                # embedded Postgres (no Docker needed) — or: docker compose up -d
 npm run db:migrate
-npm run dev                   # http://localhost:3000 → register → create project
+npm run dev                   # http://localhost:3000 → /register (first admin) → create project
 ```
 
 Send a test event (take the key id/secret from Project → Settings):

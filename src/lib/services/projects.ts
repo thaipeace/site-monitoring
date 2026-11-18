@@ -222,7 +222,8 @@ export async function addMember(actor: Actor, slug: string, email: string, role:
   const { project } = await getProjectAccess(actor, slug, { minRole: "admin", scope: "admin" });
   if (role === "owner") throw new AccessError("Không thể thêm owner", 400);
   const [user] = await db.select().from(users).where(eq(users.email, email.trim().toLowerCase())).limit(1);
-  if (!user) throw new AccessError("Chưa có tài khoản với email này — người đó cần đăng ký trước", 400);
+  if (!user) throw new AccessError("Chưa có tài khoản với email này — nhờ quản trị viên mời ở trang Người dùng", 400);
+  if (!user.active) throw new AccessError("Tài khoản này đang bị khoá", 400);
   await db
     .insert(projectMembers)
     .values({ projectId: project.id, userId: user.id, role })

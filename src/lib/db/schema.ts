@@ -18,6 +18,8 @@ const createdAt = () =>
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 export const projectRole = pgEnum("project_role", ["owner", "admin", "member"]);
+/** Workspace-wide role (like Task Board): admin manages users & invites. */
+export const userRole = pgEnum("user_role", ["admin", "member"]);
 /** error = grouped into issues; event / notification = activity stream only. */
 export const eventKind = pgEnum("event_kind", ["error", "event", "notification"]);
 export const eventLevel = pgEnum("event_level", ["fatal", "error", "warning", "info"]);
@@ -30,8 +32,32 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  role: userRole("role").notNull().default("member"),
+  // Locked accounts cannot sign in; their sessions and API tokens stop working.
+  active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 });
+
+/**
+ * Single-use links: invite a new user, or reset an existing user's password.
+ * Only the sha256 of the token is stored; the link is shown once.
+ */
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email").notNull(),
+    role: userRole("role").notNull().default("member"),
+    // true = password reset link for an existing account
+    isReset: boolean("is_reset").notNull().default(false),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: ts("expires_at").notNull(),
+    usedAt: ts("used_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("invites_email_idx").on(t.email)],
+);
 
 export const sessions = pgTable(
   "sessions",
@@ -294,6 +320,8 @@ export type Event = typeof events.$inferSelect;
 export type ApiToken = typeof apiTokens.$inferSelect;
 export type IngestKey = typeof ingestKeys.$inferSelect;
 export type ProjectRole = (typeof projectRole.enumValues)[number];
+export type UserRole = (typeof userRole.enumValues)[number];
+export type Invite = typeof invites.$inferSelect;
 export type EventKind = (typeof eventKind.enumValues)[number];
 export type EventLevel = (typeof eventLevel.enumValues)[number];
 export type IssueStatus = (typeof issueStatus.enumValues)[number];

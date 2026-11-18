@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
-import { apiTokens, projects } from "../db/schema";
+import { apiTokens, projects, users } from "../db/schema";
 import { newApiToken, sha256 } from "../crypto";
 import { AccessError, TOKEN_SCOPES, type Actor, type TokenScope } from "./access";
 
@@ -58,6 +58,11 @@ export async function authenticateBearer(header: string | null): Promise<Actor> 
   if (!token) throw new AccessError("Thiếu hoặc sai header Authorization: Bearer smt_…", 401);
   const [row] = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, sha256(token))).limit(1);
   if (!row || row.revokedAt || (row.expiresAt && row.expiresAt < new Date())) {
+    throw new AccessError("Token không hợp lệ, đã thu hồi hoặc hết hạn", 401);
+  }
+  // Tokens of a locked account stop working too.
+  const [owner] = await db.select({ active: users.active }).from(users).where(eq(users.id, row.userId)).limit(1);
+  if (!owner?.active) {
     throw new AccessError("Token không hợp lệ, đã thu hồi hoặc hết hạn", 401);
   }
   // Best effort, at most once a minute
