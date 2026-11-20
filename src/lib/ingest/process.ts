@@ -33,6 +33,7 @@ function hourOf(d: Date) {
 /**
  * Stores one normalized event. Runs in a single transaction:
  *  1. idempotency receipt — a re-sent ma_su_kien stops here and counts nothing
+ *     (so_lan = N counts N everywhere, once)
  *  2. release upsert
  *  3. issue upsert (new / existing / regression)
  *  4. hourly roll-up + sampling decision
@@ -57,12 +58,12 @@ export async function ingestEvent(project: Project, e: NormalizedEvent): Promise
           version: e.release,
           firstSeen: e.timestamp,
           lastSeen: e.timestamp,
-          eventCount: 1,
+          eventCount: e.count,
         })
         .onConflictDoUpdate({
           target: [releases.projectId, releases.environment, releases.version],
           set: {
-            eventCount: sql`${releases.eventCount} + 1`,
+            eventCount: sql`${releases.eventCount} + ${e.count}`,
             lastSeen: sql`greatest(${releases.lastSeen}, excluded.last_seen)`,
           },
         })
@@ -116,7 +117,7 @@ export async function ingestEvent(project: Project, e: NormalizedEvent): Promise
           culprit: e.path ?? e.stack?.[0] ?? null,
           source: e.source,
           level: e.level,
-          eventCount: 1,
+          eventCount: e.count,
           firstSeen: e.timestamp,
           lastSeen: e.timestamp,
           firstRelease: e.release,
@@ -158,7 +159,7 @@ export async function ingestEvent(project: Project, e: NormalizedEvent): Promise
       const [updated] = await tx
         .update(issues)
         .set({
-          eventCount: sql`${issues.eventCount} + 1`,
+          eventCount: sql`${issues.eventCount} + ${e.count}`,
           lastSeen: sql`greatest(${issues.lastSeen}, ${e.timestamp.toISOString()}::timestamptz)`,
           lastRelease: e.release ?? current.lastRelease,
           ...(regressed
@@ -174,10 +175,10 @@ export async function ingestEvent(project: Project, e: NormalizedEvent): Promise
     // ---- hourly roll-up + sampling
     const [bucket] = await tx
       .insert(issueHourly)
-      .values({ issueId: issue.id, projectId: project.id, hour: hourOf(e.timestamp), count: 1, stored: 0 })
+      .values({ issueId: issue.id, projectId: project.id, hour: hourOf(e.timestamp), count: e.count, stored: 0 })
       .onConflictDoUpdate({
         target: [issueHourly.issueId, issueHourly.hour],
-        set: { count: sql`${issueHourly.count} + 1` },
+        set: { count: sql`${issueHourly.count} + ${e.count}` },
       })
       .returning({ count: issueHourly.count, stored: issueHourly.stored });
 
@@ -221,5 +222,7 @@ function baseRow(project: Project, e: NormalizedEvent) {
     path: e.path,
     fingerprint: e.fingerprint,
     timestamp: e.timestamp,
+    occurrences: e.count,
+    requestId: e.requestId,
   };
 }

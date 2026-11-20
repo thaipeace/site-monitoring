@@ -215,7 +215,7 @@ export async function getIssueDetail(actor: Actor, issueId: string) {
       .where(eq(issueComments.issueId, issue.id))
       .orderBy(asc(issueComments.createdAt)),
     db
-      .select({ release: events.release, n: sql<number>`count(*)::int`, last: sql<Date>`max(${events.timestamp})` })
+      .select({ release: events.release, n: sql<number>`coalesce(sum(${events.occurrences}),0)::int`, last: sql<Date>`max(${events.timestamp})` })
       .from(events)
       .where(eq(events.issueId, issue.id))
       .groupBy(events.release)

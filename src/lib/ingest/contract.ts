@@ -23,6 +23,10 @@ export const eventSchema = z
     // Extensions (optional): kind and severity. Default: loi / loi.
     loai: z.enum(["loi", "su_kien", "thong_bao"]).optional(),
     muc_do: z.enum(["nghiem_trong", "loi", "canh_bao", "thong_tin"]).optional(),
+    // Allowed names, lenient values: a bad value is clamped / dropped, never a 400
+    // (a 400 would lose the whole batch over one counter). See normalizeCount / normalizeRequestId.
+    so_lan: z.unknown().optional(),
+    ma_yc: z.unknown().optional(),
   })
   .strict();
 
@@ -61,7 +65,24 @@ export type NormalizedEvent = {
   path: string | null;
   fingerprint: string;
   timestamp: Date;
+  /** so_lan: occurrences merged by the sender (1–50). */
+  count: number;
+  /** ma_yc: request id (Cloudflare cf-ray) to look up Workers Logs. */
+  requestId: string | null;
 };
+
+export const MAX_SO_LAN = 50;
+
+/** so_lan: positive integer, >50 clamped to 50; anything else is dropped (= 1). */
+export function normalizeCount(v: unknown): number {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return 1;
+  return Math.min(v, MAX_SO_LAN);
+}
+
+/** ma_yc: cf-ray style id ("8f1c2a3b4c5d6e7f-SIN"), [A-Za-z0-9-] ≤64; otherwise dropped. */
+export function normalizeRequestId(v: unknown): string | null {
+  return typeof v === "string" && /^[A-Za-z0-9-]{1,64}$/.test(v) ? v : null;
+}
 
 const MAX_MESSAGE = 300;
 const MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
@@ -93,6 +114,8 @@ export function normalizeEvent(e: IncomingEvent, now = new Date()): NormalizedEv
       ? `c:${e.dau_van_tay}`
       : defaultFingerprint({ kind, errorType, message, stack, path, source: e.nguon }),
     timestamp,
+    count: normalizeCount(e.so_lan),
+    requestId: normalizeRequestId(e.ma_yc),
   };
 }
 

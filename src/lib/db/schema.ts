@@ -228,6 +228,8 @@ export const events = pgTable(
     path: text("path"), // duong_dan
     fingerprint: text("fingerprint"), // dau_van_tay
     timestamp: ts("timestamp").notNull(), // thoi_gian
+    occurrences: integer("occurrences").notNull().default(1), // so_lan
+    requestId: text("request_id"), // ma_yc (cf-ray)
     receivedAt: ts("received_at").notNull().defaultNow(),
     // Only for kind = notification (inbox read state)
     readAt: ts("read_at"),

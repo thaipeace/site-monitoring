@@ -79,6 +79,12 @@ async function Events({ params, searchParams }: PageProps<"/projects/[slug]/even
                     )}
                     {e.message && <div className="truncate text-zinc-600">{e.message}</div>}
                     {e.path && <div className="font-mono text-xs text-zinc-500">{e.path}</div>}
+                    {(e.occurrences > 1 || e.requestId) && (
+                      <div className="text-xs text-zinc-500">
+                        {e.occurrences > 1 && <span className="mr-2 font-medium text-zinc-700">×{e.occurrences} lần</span>}
+                        {e.requestId && <span className="font-mono">cf-ray {e.requestId}</span>}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2"><Badge tone={envTone(e.environment)}>{envLabel(e.environment)}</Badge></td>
                   <td className="px-4 py-2 text-zinc-600">{e.source ?? "—"}</td>

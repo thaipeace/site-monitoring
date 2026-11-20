@@ -119,6 +119,14 @@ async function IssueDetail({ params }: PageProps<"/projects/[slug]/issues/[id]">
                   <dd>{ev.release ?? "—"}</dd>
                   <dt className="text-zinc-500">Mã sự kiện</dt>
                   <dd className="font-mono text-xs">{ev.eventId}</dd>
+                  <dt className="text-zinc-500" title="ma_yc – tra Workers Logs">Mã yêu cầu (cf-ray)</dt>
+                  <dd className="font-mono text-xs">{ev.requestId ?? "—"}</dd>
+                  {ev.occurrences > 1 && (
+                    <>
+                      <dt className="text-zinc-500">Số lần gộp</dt>
+                      <dd>×{ev.occurrences}</dd>
+                    </>
+                  )}
                 </dl>
                 <div>
                   <div className="mb-1 text-xs font-medium uppercase text-zinc-500">Stack (tệp:dòng:cột)</div>
@@ -145,6 +153,7 @@ async function IssueDetail({ params }: PageProps<"/projects/[slug]/issues/[id]">
                     <th className="px-4 py-2 font-medium">Phiên bản</th>
                     <th className="px-4 py-2 font-medium">Đường dẫn</th>
                     <th className="px-4 py-2 font-medium">Thông điệp</th>
+                    <th className="px-4 py-2 font-medium">cf-ray</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
@@ -153,7 +162,11 @@ async function IssueDetail({ params }: PageProps<"/projects/[slug]/issues/[id]">
                       <td className="whitespace-nowrap px-4 py-2 text-zinc-600">{formatDateTime(e.timestamp)}</td>
                       <td className="px-4 py-2">{e.release ?? "—"}</td>
                       <td className="px-4 py-2 font-mono text-xs">{e.path ?? "—"}</td>
-                      <td className="max-w-md truncate px-4 py-2 text-zinc-600">{e.message ?? "—"}</td>
+                      <td className="max-w-md truncate px-4 py-2 text-zinc-600">
+                        {e.occurrences > 1 && <span className="mr-1 font-medium text-zinc-800">×{e.occurrences}</span>}
+                        {e.message ?? "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-zinc-500">{e.requestId ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>

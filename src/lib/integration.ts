@@ -15,6 +15,8 @@ export const CONTRACT_FIELDS: { field: string; required: boolean; note: string }
   { field: "dau_van_tay", required: false, note: "Grouping hash. If absent: type + route + top file." },
   { field: "loai", required: false, note: "Extension: loi (default) / su_kien / thong_bao." },
   { field: "muc_do", required: false, note: "Extension: nghiem_trong / loi (default) / canh_bao / thong_tin." },
+  { field: "so_lan", required: false, note: "Occurrences merged by the sender, integer 1–50 (default 1). >50 is clamped to 50; invalid is ignored (never a 400)." },
+  { field: "ma_yc", required: false, note: "Request id = Cloudflare cf-ray, [A-Za-z0-9-] ≤64, to look up Workers Logs. Invalid is ignored." },
 ];
 
 export const NEVER_SEND =

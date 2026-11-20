@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../src/lib/db";
-import { issueHourly, issues, projects, users } from "../src/lib/db/schema";
+import { events, issueHourly, issues, projects, releases, users } from "../src/lib/db/schema";
 import { normalizeEvent, type IncomingEvent } from "../src/lib/ingest/contract";
 import { ingestEvent } from "../src/lib/ingest/process";
 import { createProject } from "../src/lib/services/projects";
@@ -68,6 +68,24 @@ describe("ingest", () => {
     const [i] = await db.select().from(issues).where(eq(issues.id, a.issue_id!));
     assert.equal(i.eventCount, 2);
     assert.equal(i.shortId, 1);
+  });
+
+  it("so_lan = N counts N on issue, hourly roll-up and release – once even if re-sent; ma_yc is stored", async () => {
+    const e = ev({ loai_loi: "SoLanError", so_lan: 7, ma_yc: "8f1c2a3b4c5d6e7f-SIN", phien_ban: `sl-${run}` });
+    const first = await ingestEvent(await project(), normalizeEvent(e));
+    if (first.trang_thai !== "accepted") return assert.fail();
+    await ingestEvent(await project(), normalizeEvent(ev({ loai_loi: "SoLanError", so_lan: 500, phien_ban: `sl-${run}` })));
+    const again = await ingestEvent(await project(), normalizeEvent(e));
+    assert.equal(again.trang_thai, "duplicate");
+    const [i] = await db.select().from(issues).where(eq(issues.id, first.issue_id!));
+    assert.equal(i.eventCount, 7 + 50);
+    const [h] = await db.select({ n: sql<number>`sum(${issueHourly.count})::int` }).from(issueHourly).where(eq(issueHourly.issueId, i.id));
+    assert.equal(h.n, 57);
+    const [rel] = await db.select().from(releases).where(eq(releases.version, `sl-${run}`));
+    assert.equal(rel.eventCount, 57);
+    const [stored] = await db.select().from(events).where(eq(events.eventId, e.ma_su_kien));
+    assert.equal(stored.occurrences, 7);
+    assert.equal(stored.requestId, "8f1c2a3b4c5d6e7f-SIN");
   });
 
   it("counts a re-sent ma_su_kien only once", async () => {
